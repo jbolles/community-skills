@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.9.1 - 2026-09-12
+
+Fixes from the first community run, reported by a user who installed the plugin
+from the marketplace and ran a full seven-reader panel on a lead-gen page.
+
+- **Script paths work when installed as a plugin.** `SKILL.md` called its scripts
+  by a repo-relative path that only resolved inside a `.claude/skills/` copy.
+  All ten calls now go through `${CLAUDE_PLUGIN_ROOT}`. `INSTALL.md` says what
+  to change if you copy the skill into a repo instead.
+- **A narrow reader agent ships with the plugin.** The cost figures assumed an
+  agent type (`sonnet-worker`) that only exists in an Agency Brain, so a plugin
+  install fell back to `general-purpose` and paid two and a half times the quoted
+  figures (measured: 105k per reader, 733k for seven, on a machine with about two
+  hundred tool definitions). `agents/seo-council-reader.md` is now the spawn
+  target, and Step 3 states the `general-purpose` range for anyone who cannot use
+  it.
+- **`scores.cjs summary` no longer claims repeatability it has not seen.** The
+  "repeatability is well evidenced" line printed unconditionally, including on a
+  fresh store with one record. It now prints only when a page has been scored
+  twice; otherwise the summary says neither property is evidenced yet.
+- **`mode` has three values for three states.** The record field accepted any
+  string and documented only `conformance` and `fallback`, so a run with a filled
+  target brief and a run with nothing at all were indistinguishable and averaged
+  together. It is now validated to `conformance`, `assigned` or `inferred`, matching
+  the three input states in `rubric-core.md`. Existing `fallback` records are read
+  as `inferred` and noted.
+
 ## 0.9.0 - 2026-08-18
 
 First public release. Version 0.9 rather than 1.0 for one honest reason: the

@@ -21,6 +21,13 @@ const fs = require('fs');
 const path = require('path');
 
 const DIMS = ['entity', 'geo', 'intent', 'eeat', 'onpage', 'fit'];
+// The entity seat's three input states (rubric-core.md). Each measures a
+// different construct, so records are grouped by mode and never averaged
+// across it. `fallback` is the pre-2026-08-17 name for what is now `inferred`,
+// from before the target brief existed; it is read as `inferred` and flagged.
+const MODES = ['conformance', 'assigned', 'inferred'];
+const LEGACY_MODES = { fallback: 'inferred' };
+const canonMode = m => LEGACY_MODES[m] || m;
 const DIM_LABEL = { entity: 'Entity', geo: 'GEO/AEO', intent: 'Intent', eeat: 'E-E-A-T', onpage: 'On-page', fit: 'Fit' };
 const SKILL_DIR = path.resolve(__dirname, '..');
 
@@ -109,6 +116,14 @@ function validateRec(rec, canon) {
   }
   if (errs.length) return { errs, warns, infos };
 
+  if (rec.mode === undefined) {
+    warns.push('missing field: mode (conformance, assigned or inferred)');
+  } else if (LEGACY_MODES[rec.mode]) {
+    infos.push(`mode "${rec.mode}" is the legacy name for "${LEGACY_MODES[rec.mode]}"; read as such`);
+  } else if (!MODES.includes(rec.mode)) {
+    errs.push(`mode "${rec.mode}" is not one of ${MODES.join(', ')}`);
+  }
+
   const wsum = round2(DIMS.reduce((s, d) => s + rec.weights[d], 0));
   if (wsum !== 1) errs.push(`weights sum to ${wsum}, not 1.0`);
 
@@ -183,7 +198,7 @@ function cmdSummary() {
   for (const r of rows) {
     const who = r.standalone ? `(prospect) ${r.label}` : `${r.client} / ${r.label}`;
     const panel = r.panel ? ` [${r.panel}]` : '';
-    console.log(`  ${r.date}  ${String(r.index).padStart(5)}  ${(r.vertical || '?').padEnd(9)}  ${(r.mode || '?').padEnd(11)}  ${who}${panel}`);
+    console.log(`  ${r.date}  ${String(r.index).padStart(5)}  ${(r.vertical || '?').padEnd(9)}  ${(canonMode(r.mode) || '?').padEnd(11)}  ${who}${panel}`);
   }
 
   console.log('\n## Dimension means across current runs\n');
@@ -203,7 +218,7 @@ function cmdSummary() {
   }
 
   const modes = {};
-  for (const r of active) (modes[r.mode] ||= []).push(r.index);
+  for (const r of active) (modes[canonMode(r.mode) || '?'] ||= []).push(r.index);
   console.log('\n## By mode\n');
   for (const [m, xs] of Object.entries(modes)) {
     console.log(`  ${String(m).padEnd(12)}  n=${xs.length}  mean ${round2(xs.reduce((a, b) => a + b, 0) / xs.length)}`);
@@ -234,11 +249,20 @@ function cmdSummary() {
         s.forEach(r => console.log(`      ${r.date}  index ${r.index}${r.page_changed_since_prior === false ? '  (page unchanged)' : ''}`));
       }
     }
-    console.log('\n  Repeatability is well evidenced and sensitivity is not evidenced at all.');
-    console.log('  The instrument reads the same twice on the same page. Nothing yet shows');
-    console.log('  it moves when the page improves. Until one page is scored, fixed, and');
-    console.log('  scored again, treat the index as a consistent ranking, not a measure of');
-    console.log('  change, and do not report a delta as progress.');
+    // Repeatability is only a claim the store can back once a page has been
+    // scored twice in the same state. A fresh store with one record has no
+    // evidence for either property, and must say so.
+    if (remeasured.length) {
+      console.log('\n  Repeatability is evidenced and sensitivity is not evidenced at all.');
+      console.log('  The instrument reads the same twice on the same page. Nothing yet shows');
+      console.log('  it moves when the page improves.');
+    } else {
+      console.log('\n  Neither repeatability nor sensitivity is evidenced yet. No page has been');
+      console.log('  scored twice, so nothing shows the instrument reads the same on the same');
+      console.log('  page, and nothing shows it moves when the page improves.');
+    }
+    console.log('  Until one page is scored, fixed, and scored again, treat the index as a');
+    console.log('  ranking, not a measure of change, and do not report a delta as progress.');
   } else {
     for (const [u, rs] of real) {
       const s = rs.sort((a, b) => a.date.localeCompare(b.date));

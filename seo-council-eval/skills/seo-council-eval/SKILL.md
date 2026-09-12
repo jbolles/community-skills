@@ -1,8 +1,8 @@
 ---
 name: seo-council-eval
 description: Convene a rubric-based council of named SEO experts to evaluate a piece of SEO copy (draft or live page) and return a scored report with a prioritized fix list. Experts score against an entity/attribute/value methodology if you have one (a blueprint or a filled target brief), live SERP data, and your brain's client context. USE WHEN someone says "seo council", "seo copy council", "score this page", "evaluate this copy for SEO", "run the copy past the SEO experts", "will this page rank", "is this copy AEO-ready", or wants a draft article, service page, product page, or landing page judged before it ships. Covers ecommerce, lead-gen/topical authority, local, and B2B copy. Do NOT use for writing new copy, rewriting for persuasion or clarity, or site-wide audits; those are separate tools.
-version: 0.9.0
-last_updated: 2026-08-18
+version: 0.9.1
+last_updated: 2026-09-12
 maturity: live
 ---
 
@@ -39,7 +39,7 @@ Gather into one pack that every expert receives. Write the pack to a file and pa
 
 - **The copy itself. Extract it mechanically. This is not optional:**
   ```
-  node .claude/skills/seo-council-eval/scripts/fetch-page.cjs <url> --out <source.md> \
+  node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/fetch-page.cjs" <url> --out <source.md> \
     --expect "/hub-url/,/sibling-url/,/ticket-page/"
   ```
   Pass `--expect` the URLs the topical map says this page should link: its hub, its sibling spokes, and any commercial page it ought to feed. The script then reports each as linked or not linked, which turns the lead-gen red-flag condition from a judgment call into a lookup. It also emits a computed on-page section (heading tree, H1 presence, internal versus external link split, weak anchors, title-to-heading agreement) so the mechanics reader verifies counts instead of making them.
@@ -49,8 +49,8 @@ Gather into one pack that every expert receives. Write the pack to a file and pa
 - **Client context**: read `clients/<slug>/` context files. If `context.md` is still an unfilled template, note it in the report and, if your brain has a client-setup step, recommend it, because a council inferring business context it should have been handed is an accuracy risk.
 - **The entity blueprint, if you have one**: an entity blueprint is often produced as an `.xlsx` (the entity-brand-blueprint skill does this, if your brain has it), which no text tool reads directly. Dump it first:
   ```
-  node .claude/skills/seo-council-eval/scripts/read-xlsx.cjs <blueprint.xlsx> --list
-  node .claude/skills/seo-council-eval/scripts/read-xlsx.cjs <blueprint.xlsx> --sheet Semantic
+  node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/read-xlsx.cjs" <blueprint.xlsx> --list
+  node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/read-xlsx.cjs" <blueprint.xlsx> --sheet Semantic
   ```
   The Semantic sheet carries the attribute and searcher-consideration columns Koray's seat scores against. Read the blueprint itself; never score conformance against a second-hand summary of it in another report.
 - **The topical map**: `topical-map` outputs (brief.md, pillar-hub-pages.csv, spoke-articles.csv). Find this page's assignment, or establish that it has none.
@@ -85,7 +85,7 @@ Gather into one pack that every expert receives. Write the pack to a file and pa
 
   The cheap defence is a lookup. **Run this before writing a word of the context pack:**
   ```
-  node .claude/skills/seo-council-eval/scripts/data-manifest.cjs <client-slug>
+  node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/data-manifest.cjs" <client-slug>
   ```
   It prints every file in `clients/<slug>/data/` with its row count, separates the populated from the header-only, calls out any search-terms export by name, reports whether a blueprint and topical map exist (so you know whether you are in conformance or fallback mode before you start), and reminds you to check GSC over MCP, which it cannot see itself. "Which files actually have data" becomes a lookup rather than a guess. An absence claim in the pack needs the same discipline the rubric demands of readers: check, then state.
 
@@ -116,7 +116,9 @@ For reference, this run cost about 490k before the agent-spawn and pre-briefing 
 
 That is down from about 70k per agent, a 55 percent cut, from two changes that touched no scoring rule: narrowing the agent tool surface (measured 44 percent on its own) and pre-briefing. Scores and findings were equal or better at every step, verified by re-running the same dimension on the same page. If a run is costing appreciably more than this, check the spawn and check that briefs were built, rather than accepting the number.
 
-If a run comes in near 60-70k per agent, the agents were spawned as `general-purpose`. Fix the spawn rather than accepting the number.
+**The figures above assume the narrow reader agent** described in Step 4. If a run comes in near 60-70k per agent, the agents were spawned as `general-purpose`. Fix the spawn rather than accepting the number.
+
+**On `general-purpose`, expect two to three times the quoted figures, and more on a machine with many MCP servers connected.** Every tool definition the client has loaded goes into every reader. The 60-70k figure came from a machine with a moderate tool load; a community install with about two hundred tool definitions measured **104,652 tokens per reader and 732,564 for seven readers**, two and a half times the narrow-agent figure. The worse the MCP setup, the worse the gap, and nothing in the run itself will tell you. If you cannot spawn the narrow agent, quote the user the higher range, not this one.
 
 That is the real price of independent scoring, and it is roughly six times what a single-reader inline pass costs. It buys scores that can contradict the orchestrator, which is the entire point, but say the number out loud: tell the user the panel size and the token estimate and get a yes before firing. One line is enough. Never launch first and explain after.
 
@@ -126,14 +128,16 @@ That is the real price of independent scoring, and it is roughly six times what 
 
 **The scores must come from independent readers, not from one mind wearing several hats.** If you write all the experts yourself in one pass, the disagreements are authored rather than discovered: you know the conclusion before writing either side, and the panel produces a narrative about consensus instead of evidence of it. The scores are the client-facing claim, so this is the difference between a scoring instrument and a piece of theatre.
 
-**Spawn them as `sonnet-worker` with the model overridden to a capable one** (`subagent_type: "sonnet-worker", model: "opus"`), not as `general-purpose`. A scoring agent needs exactly one capability, reading files, and `general-purpose` loads every tool in the environment (Ahrefs, DataForSEO, Gmail, Asana, Notion, Slack and the rest) into all seven of them. A controlled test on 2026-08-08 ran the same dimension, same prompt, same files, same model, changing only the agent type: **70,492 tokens on `general-purpose` versus 39,702 on `sonnet-worker`, a 44 percent cut with identical scores and equally good findings.** The override keeps the reasoning quality; only the unused tool definitions go away.
+**Spawn them as the narrow `seo-council-reader` agent that ships with this plugin** (`agents/seo-council-reader.md`: Read, Grep and Glob only, capable model), not as `general-purpose`. Depending on your client it may be listed as `seo-council-reader` or `seo-council-eval:seo-council-reader`; if neither appears in your available agent types, any agent definition restricted to file reading does the same job (in an Agency Brain, `subagent_type: "sonnet-worker", model: "opus"`). A scoring agent needs exactly one capability, reading files, and `general-purpose` loads every tool in the environment (every connected MCP server included) into all seven of them. A controlled test on 2026-08-08 ran the same dimension, same prompt, same files, same model, changing only the agent type: **70,492 tokens on `general-purpose` versus 39,702 on a read-only agent, a 44 percent cut with identical scores and equally good findings.** The narrow agent keeps the reasoning quality; only the unused tool definitions go away.
+
+If you have no narrow agent available and must use `general-purpose`, tell the user before firing: the figures in Step 3 no longer apply, and the real cost depends on how many tool definitions their client loads. See the caveat there.
 
 Do not drop to Sonnet to save tokens. The same test found Sonnet cost slightly *more* (43,459) than the capable model on the identical narrow tool surface, while producing noticeably thinner metadata findings. It is faster in wall-clock and cheaper per token, so it is a reasonable choice when dollar cost matters more than token count, but it is not a token saving and it does cost you some sharpness.
 
 **Build each agent a brief first.** One command per seated expert:
 
 ```
-node .claude/skills/seo-council-eval/scripts/build-brief.cjs \
+node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/build-brief.cjs" \
   --dimension entity|geo|intent|eeat|onpage|fit \
   --persona <persona-file-name> --vertical <b2b|lead-gen|local|ecommerce> \
   --source <source.md> --context <context-pack.md> --out <brief-<dim>.md>
@@ -186,7 +190,7 @@ The report is client-facing by default. Apply your brain's house voice rules to 
 **Then run the attribution gate. This is not optional and it is not a style check.**
 
 ```
-node .claude/skills/seo-council-eval/scripts/check-attribution.cjs <report-path>
+node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/check-attribution.cjs" <report-path>
 ```
 
 It fails the report if the disclaimer is missing, or if any heading or table row attributes a score to a bare practitioner name, and it prints the correct lens phrase for every seat it flags. Fix what it reports and run it again until it passes.
@@ -198,23 +202,23 @@ Seat names come from each persona's `**Lens:**` line. Every persona carries one,
 **Then record the run.** A prose report cannot be compared to another prose report, so every run also appends one line per scored panel to `data/councils/seo-council-eval/scores.jsonl`:
 
 ```
-node .claude/skills/seo-council-eval/scripts/scores.cjs append '{"run_id":"...","date":"...","client":"...","url":"...","label":"...","vertical":"lead-gen","mode":"conformance","panels":1,"dimensions":{"entity":3,"geo":3,"intent":4.5,"eeat":5,"onpage":5,"fit":7},"weights":{"entity":0.30,"geo":0.20,"intent":0.15,"eeat":0.15,"onpage":0.10,"fit":0.10},"index_reported":"4.1","confidence":"moderate","verdict":"rework","report":"clients/.../file.md","notes":"..."}'
+node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/scores.cjs" append '{"run_id":"...","date":"...","client":"...","url":"...","label":"...","vertical":"lead-gen","mode":"conformance","panels":1,"dimensions":{"entity":3,"geo":3,"intent":4.5,"eeat":5,"onpage":5,"fit":7},"weights":{"entity":0.30,"geo":0.20,"intent":0.15,"eeat":0.15,"onpage":0.10,"fit":0.10},"index_reported":"4.1","confidence":"moderate","verdict":"rework","report":"clients/.../file.md","notes":"..."}'
 ```
 
 `append` recomputes the index from dimensions and weights, refuses the record if the stated index disagrees, if the weights do not sum to 1, or if the `run_id` is already taken, and warns if the weights do not match the declared vertical's overlay. Store the precise computed value in `index` and whatever the report published in `index_reported`; the report rounds to one decimal, the record does not.
 
 Three fields carry more weight than they look:
 
-- **`mode`** is `conformance` or `fallback`. Entity scores a different construct in each, so mixing them in an average is meaningless and the summary separates them.
+- **`mode`** is the entity seat's input state from Step 2: `conformance` (blueprint on file), `assigned` (target brief, no blueprint) or `inferred` (neither). `validate` and `append` reject any other value. Entity scores a different construct in each, so mixing them in an average is meaningless and the summary separates them. Records written by 0.9.0 may carry `fallback`, the old name for `inferred`; the scripts read it as such and note it.
 - **`page_changed_since_prior`** must be set on any re-run of a URL already in the file. `false` means a corrected re-run on the same page state, which is repeatability evidence. `true` means the page actually changed, which is the only thing that can ever evidence sensitivity. Getting this wrong would let the skill claim its central promise on evidence that does not support it.
 - **`superseded_by` / `supersedes`** link corrections to what they replace, so a bad run stays in the record as an audit trail without polluting the current set.
 
 Then read the history back:
 
 ```
-node .claude/skills/seo-council-eval/scripts/scores.cjs validate
-node .claude/skills/seo-council-eval/scripts/scores.cjs summary
-node .claude/skills/seo-council-eval/scripts/scores.cjs trend <client>
+node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/scores.cjs" validate
+node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/scores.cjs" summary
+node "${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval/scripts/scores.cjs" trend <client>
 ```
 
 Backfilling the first ten runs earned this file its keep before it was finished. `validate` found that the Nexus run declared lead-gen but applied core weights, publishing 6.0 where the lead-gen overlay gives 5.9. `summary` found that strategic fit has never scored below 5 in ten runs, a 2-point range where every other dimension spans 4, which is a calibration problem in that dimension's anchors rather than a fact about the pages.

@@ -9,5 +9,14 @@ page for SEO. Read `SKILL.md` for the full workflow, `README.md` for a sixty-sec
 overview and the honest limits, and `NOTICE.md` for how the named lenses work.
 
 It needs Node (for its bundled scripts) and, for the independent-scoring step, a
-Claude client that can spawn subagents. Without subagents it still runs, scoring
+Claude client that can spawn subagents. The plugin ships a narrow read-only agent,
+`agents/seo-council-reader.md`, and `SKILL.md` spawns the readers as that agent;
+the cost figures assume it.
+
+`SKILL.md` calls its scripts through `${CLAUDE_PLUGIN_ROOT}`, which Claude Code
+sets to the plugin's install directory. If you copy the skill folder into a
+repo's `.claude/skills/` instead of installing the plugin, that variable is not
+set, so replace `${CLAUDE_PLUGIN_ROOT}/skills/seo-council-eval` with the path to
+the copied folder (for example `.claude/skills/seo-council-eval`) in the ten
+`node` calls, and spawn the readers as any file-read-only agent your brain has. Without subagents it still runs, scoring
 each dimension in a separate pass; the report says which mode was used.

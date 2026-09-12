@@ -37,6 +37,13 @@ independence is the point of the tool. Cheaper configurations are documented in
 `SKILL.md`: six readers is about 215k to 250k, and a re-score of only the
 dimensions whose evidence changed is roughly 100k.
 
+Those figures assume each reader is spawned as the narrow `seo-council-reader`
+agent that ships with this plugin (file reading only, no MCP tools). On a
+`general-purpose` agent every tool definition your client has loaded goes into
+every reader, and the cost is two to three times higher: one install with about
+two hundred tool definitions measured 105k per reader, 733k for seven. `SKILL.md`
+Step 3 has the detail.
+
 ## The one required step
 
 Every run must pass the attribution gate before its report is shared:
